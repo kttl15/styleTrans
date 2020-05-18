@@ -26,15 +26,17 @@ class FirebaseStorageUtils:
         client = storage.Client(credentials=credentials, project=storage_bucket)
         self.bucket = client.get_bucket(storage_bucket)
 
-    def downloadFile(self, storageFilename: str, downloadPathName: str):
-        if not pathlib.Path(downloadPathName).is_dir():
-            filepath = "/".join(downloadPathName.split("/")[:-1])
-        filepath = pathlib.Path(filepath)
-        if not filepath.exists():
-            filepath.mkdir(parents=True, exist_ok=True)
+    def downloadFile(self, storageFilename: list):
+        for s in storageFilename:
+            downloadPathName = f"downloaded/{s}"
+            if not pathlib.Path(downloadPathName).is_dir():
+                filepath = "/".join(downloadPathName.split("/")[:-1])
+            filepath = pathlib.Path(filepath)
+            if not filepath.exists():
+                filepath.mkdir(parents=True, exist_ok=True)
 
-        blob = self.bucket.get_blob(storageFilename)
-        blob.download_to_filename(downloadPathName)
+            blob = self.bucket.get_blob(s)
+            blob.download_to_filename(downloadPathName)
 
     def uploadFile(self, storageFileName: str, uploadPathName: str):
         blob = self.bucket.blob(storageFileName)
@@ -52,6 +54,8 @@ if __name__ == "__main__":
 
     firebase = FirebaseStorageUtils(config)
     firebase.downloadFile(
-        storageFilename="images/UPjcLOcMuKfLHeeEeJhF5IVHvCP2/cncx/content.jpg",
-        downloadPathName="downloaded/images/UPjcLOcMuKfLHeeEeJhF5IVHvCP2/cncx/content.jpg",
+        storageFilename=[
+            "images/UPjcLOcMuKfLHeeEeJhF5IVHvCP2/cjcjc/content.jpg",
+            "images/UPjcLOcMuKfLHeeEeJhF5IVHvCP2/cjcjc/style.jpg",
+        ],
     )
