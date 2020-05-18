@@ -7,32 +7,34 @@ from firebase_admin import credentials
 
 
 class FirebaseStorage:
-    def __init__(self, config):
-        storage_bucket = config["storageBucket"]
+    def __init__(self, config: dict):
+        assert isinstance(config, dict)
+        assert "serviceAccount" in config.keys()
+        serviceAccountJSON = config["serviceAccount"]
+
+        with open(serviceAccountJSON, "r") as f:
+            temp = json.load(f)
+            storage_bucket = temp["project_id"] + ".appspot.com"
         scopes = [
             "https://www.googleapis.com/auth/firebase.database",
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/cloud-platform",
         ]
-        self.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-            config["serviceAccount"], scopes
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(
+            serviceAccountJSON, scopes
         )
-        self.storage_bucket = (
-            "https://firebasestorage.googleapis.com/v0/b/" + storage_bucket
-        )
-        client = storage.Client(credentials=self.credentials, project=storage_bucket)
+        client = storage.Client(credentials=credentials, project=storage_bucket)
         self.bucket = client.get_bucket(storage_bucket)
 
-    def checkFilePath(self, path: str):
+    def checkFilePathExist(self, path: str):
         if not pathlib.Path(path).is_dir():
             path = "/".join(path.split("/")[:-1])
         path = pathlib.Path(path)
-        print(path)
         if not path.exists():
             path.mkdir(parents=True, exist_ok=True)
 
-    def download(self, storageFilename, downloadPathName):
-        self.checkFilePath(downloadPathName)
+    def downloadFile(self, storageFilename: str, downloadPathName: str):
+        self.checkFilePathExist(downloadPathName)
         blob = self.bucket.get_blob(storageFilename)
         blob.download_to_filename(downloadPathName)
 
@@ -43,7 +45,7 @@ config = {
 }
 
 firebase = FirebaseStorage(config)
-firebase.download(
+firebase.downloadFile(
     storageFilename="images/UPjcLOcMuKfLHeeEeJhF5IVHvCP2/cncx/content.jpg",
     downloadPathName="downloaded/images/UPjcLOcMuKfLHeeEeJhF5IVHvCP2/cncx/content.jpg",
 )
