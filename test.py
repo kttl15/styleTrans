@@ -21,7 +21,16 @@ class Firestore:
         self.processDict = {}
         self.executor = ThreadPoolExecutor()
 
-    def getProcessDict(self):
+    def getProcessDict(self, outputFile: str = None):
+        """[summary]
+        main method that builds the output dict and saved as a json object
+        
+        checks to see if uid has any unprocessed data before retriving records to save
+        time
+
+        Keyword Arguments:
+            outputFile {str} -- [name of json file] (default: {None})
+        """
         # db stucture: collection(images) -> document(uid) -> collection(process) -> document(processName)
 
         col_ref = self.db.collection("images").stream()
@@ -40,10 +49,16 @@ class Firestore:
         finally:
             event_loop.close()
 
-        with open("test.json", "w") as f:
+        with open(outputFile if outputFile else "test.json", "w") as f:
             json.dump(self.processDict, f)
 
     async def main(self, uid):
+        """[summary]
+        asynchronously retrives each record from firestore database
+
+        Arguments:
+            uid {[DocumentSnapshot]} -- [a firestore document snapshot]
+        """
         processes = uid.collection("process").stream()
         loop = asyncio.get_event_loop()
         res = [
@@ -54,6 +69,13 @@ class Firestore:
         self.processDict.update({uid.id: self.processList})
 
     def getProcessList(self, uid_process: list):
+        """[summary]
+        builds a list of processes for each uid
+        
+
+        Arguments:
+            uid_process {list} -- [a list of uid and process name]
+        """
         uid = uid_process[0]
         process = uid_process[1]
         processDoc = uid.collection("process").document(process.id).get().to_dict()
@@ -78,13 +100,13 @@ class Firestore:
 #     counter += 1
 #     if counter >= 3:  # limit to 3 loops
 #         break
-config = {
-    "serviceAccount": "/home/a/Desktop/gan/flutter-bloc-1-2eb17-firebase-adminsdk-mhniq-a589c3de7a.json"
-}
+
+config = {"serviceAccount": "/home/a/Desktop/gan/serviceAccount.json"}
 firestore = Firestore(config)
+outputFile = "processDict.json"
 
 start = np.array([perf_counter(), time(), process_time()])
-firestore.getProcessDict()
+firestore.getProcessDict(outputFile=outputFile)
 end = np.array([perf_counter(), time(), process_time()])
 diff_time = end - start
 

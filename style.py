@@ -4,24 +4,15 @@ from PIL import Image
 from tqdm import tqdm
 import os
 import pathlib
-
-# import firebase_admin
 import matplotlib.pyplot as plt
 from datetime import datetime
 import time
+import downloader
+import test
 
 
 gpus = tf.config.experimental.list_physical_devices("GPU")
 tf.config.experimental.set_memory_growth(gpus[0], True)
-
-# set env variable to path to JSON file
-# os.system(
-#     'export GOOGLE_APPLICATION_CREDENTIALS="/home/a/Desktop/gan/google-services.json"'
-# )
-
-# init sdk
-# app = firebase_admin.initialize_app()
-# app.get_app()
 
 
 def tensor_to_image(tensor):
