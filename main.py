@@ -102,14 +102,14 @@ class Extractor(tf.keras.models.Model):
 
 
 class StyleTransfer:
-    def __init__(self, processDict: str):
-        with open(processDict, "r") as f:
-            processDict = json.load(f)
+    def __init__(self, processDict: dict):
+        # with open(processDict, "r") as f:
+        #     processDict = json.load(f)
 
         # get the number of processes
-        processDictLen = 0
-        for uid in processDict.keys():
-            processDictLen += len(processDict[uid])
+        # processDictLen = 0
+        # for uid in processDict.keys():
+        #     processDictLen += len(processDict[uid])
 
         self.content_layers = [
             "block5_conv1",
@@ -131,11 +131,11 @@ class StyleTransfer:
             # 'block4_conv4',
         ]
 
-        with tqdm(total=processDictLen) as pbar:
-            for uid in processDict.keys():
-                for process in processDict[uid]:
-                    self.run(process)
-                    pbar.update(1)
+        # with tqdm(total=processDictLen) as pbar:
+        for uid in processDict.keys():
+            for process in processDict[uid]:
+                self.run(process)
+                # pbar.update(1)
 
     def run(self, process):
         # get details from json object
@@ -143,7 +143,7 @@ class StyleTransfer:
         locStyle = f"/home/a/Desktop/downloaded/{process['locStyle']}"
         content_img = self.load_img(locContent)
         style_img = self.load_img(locStyle)
-        epochs = 10
+        epochs = int(process["epoch"])
         numberOfImageToSave = min(epochs, 4)
         self.contentWeight = int(process["contentWeight"])
         self.contentWeight = 1e3 * self.contentWeight ** 2 * 0.5
@@ -299,7 +299,13 @@ class StyleTransfer:
 
 
 if __name__ == "__main__":
-    style = StyleTransfer("processDict.json")
+    config = {"serviceAccount": "/home/a/Desktop/gan/serviceAccount.json"}
+    firebaseStorage = FirebaseStorageUtils(config)
+
+    with open("processDict.json", "r") as f:
+        processDict = json.load(f)
+
+    style = StyleTransfer(processDict)
 
 
 # TODO: find a way to control how much colour is used
