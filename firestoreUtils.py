@@ -9,7 +9,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 
-class Firestore:
+class FirestoreUtils:
     def __init__(self, config: dict):
 
         assert isinstance(config, dict)
@@ -100,28 +100,28 @@ class Firestore:
 #     counter += 1
 #     if counter >= 3:  # limit to 3 loops
 #         break
+if __name__ == "__main__":
+    config = {"serviceAccount": "/home/a/Desktop/gan/serviceAccount.json"}
+    firestore = FirestoreUtils(config)
+    outputFile = "processDict.json"
 
-config = {"serviceAccount": "/home/a/Desktop/gan/serviceAccount.json"}
-firestore = Firestore(config)
-outputFile = "processDict.json"
+    start = np.array([perf_counter(), time(), process_time()])
+    firestore.getProcessDict(outputFile=outputFile)
+    end = np.array([perf_counter(), time(), process_time()])
+    diff_time = end - start
 
-start = np.array([perf_counter(), time(), process_time()])
-firestore.getProcessDict(outputFile=outputFile)
-end = np.array([perf_counter(), time(), process_time()])
-diff_time = end - start
+    a = 0
+    for uid in firestore.processDict.keys():
+        a += len(firestore.processDict[uid])
 
-a = 0
-for uid in firestore.processDict.keys():
-    a += len(firestore.processDict[uid])
-
-print(
-    f"""
-      {{
-        perf: {diff_time[0].round(2)}, 
-        time: {diff_time[1].round(2)}, 
-        proc: {diff_time[2].round(2)},
-        user: {len(firestore.processDict.keys())}
-        len:  {a}
-      }}
-      """
-)
+    print(
+        f"""
+        {{
+            perf: {diff_time[0].round(2)}, 
+            time: {diff_time[1].round(2)}, 
+            proc: {diff_time[2].round(2)},
+            user: {len(firestore.processDict.keys())}
+            len:  {a}
+        }}
+        """
+    )

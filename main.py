@@ -142,7 +142,7 @@ class StyleTransfer:
         locStyle = f"/home/a/Desktop/downloaded/{process['locStyle']}"
         content_img = self.load_img(locContent)
         style_img = self.load_img(locStyle)
-        epochs = int(process["epoch"])
+        epochs = 10
         numberOfImageToSave = min(epochs, 4)
         self.contentWeight = int(process["contentWeight"])
         self.contentWeight = 1e3 * self.contentWeight ** 2 * 0.5
@@ -162,12 +162,10 @@ class StyleTransfer:
         total_variation_weight = 1000
         steps_per_epoch = 100
         epochsToSave = np.linspace(1, epochs, numberOfImageToSave).round().astype(int)
-        print(epochsToSave)
 
         img = tf.Variable(content_img)
         train_step = self.new_train_step()
-
-        for epoch in range(epochs):
+        for epoch in tqdm(range(epochs)):
             for m in range(steps_per_epoch):
                 train_step(
                     img,
@@ -185,9 +183,27 @@ class StyleTransfer:
                 )
 
     def clip_0_1(self, img):
+        """[summary]
+        clip any value above 1.0 or below 0.0
+
+        Arguments:
+            img {tf.Tensor} -- [unclipped image]
+
+        Returns:
+            [tf.Tensor] -- [clipped image]
+        """
         return tf.clip_by_value(img, clip_value_min=0.0, clip_value_max=1.0)
 
     def tensor_to_image(self, tensor):
+        """[summary]
+        convert tensor representation of image back to a PIL.Image image
+
+        Arguments:
+            tensor {tf.Tensor} -- [tensor containing the image]
+
+        Returns:
+            [PIL.Image] -- [image]
+        """
         tensor = tensor * 255.0
         tensor = np.array(tensor, dtype=np.uint8)
         if np.ndim(tensor) > 3:
@@ -195,7 +211,16 @@ class StyleTransfer:
             tensor = tensor[0]
         return Image.fromarray(tensor)
 
-    def load_img(self, path_to_img):
+    def load_img(self, path_to_img: str):
+        """[summary]
+        load image as tensor as resize
+
+        Arguments:
+            path_to_img {str} -- [path to image]
+
+        Returns:
+            [tf.Tensor] -- [tensor containing the image]
+        """
         max_dim = 512
         img = tf.io.read_file(path_to_img)
         img = tf.image.decode_image(img, channels=3)
@@ -250,6 +275,17 @@ class StyleTransfer:
     def new_train_step(self):
         @tf.function()
         def train_step(img, tvw, sw, cw, extractor, opt):
+            """[summary]
+            calculating loss and applying gradients
+
+            Arguments:
+                img {tf.Tensor} -- [description]
+                tvw {float} -- [description]
+                sw {float} -- [description]
+                cw {float} -- [description]
+                extractor {[type]} -- [description]
+                opt {[type]} -- [description]
+            """
             with tf.GradientTape() as tape:
                 outputs = extractor(img)
                 loss = self.style_content_loss(outputs)
@@ -259,11 +295,6 @@ class StyleTransfer:
             img.assign(self.clip_0_1(img))
 
         return train_step
-
-
-# def main(
-#     locContent: str, locStyle: str, epochs: int, contentWeight: int, styleWeight: int
-# ):
 
 
 if __name__ == "__main__":
