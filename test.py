@@ -79,7 +79,7 @@ class Firestore:
 #     if counter >= 3:  # limit to 3 loops
 #         break
 config = {
-    "serviceAccount": "/home/a/Desktop/gan/flutter-bloc-1-2eb17-firebase-adminsdk-mhniq-5a79605801.json"
+    "serviceAccount": "/home/a/Desktop/gan/flutter-bloc-1-2eb17-firebase-adminsdk-mhniq-a589c3de7a.json"
 }
 firestore = Firestore(config)
 
