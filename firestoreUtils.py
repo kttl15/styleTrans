@@ -6,6 +6,7 @@ from collections import OrderedDict
 from time import perf_counter, time, process_time, sleep
 import numpy as np
 import asyncio
+import os
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -21,9 +22,7 @@ class FirestoreUtils:
         self.processDict = {}
         self.executor = ThreadPoolExecutor()
 
-    def getProcessDict(
-        self, returnDict: bool, currentDict: str = None, outputFileName: str = None
-    ):
+    def getProcessList(self, returnList: bool, outputFileName: str = None):
         """[summary]
         db stucture: collection(images) -> document(uid) -> collection(process) -> document(processName)
         
@@ -35,9 +34,8 @@ class FirestoreUtils:
         Keyword Arguments:
             outputFile {str} -- [name of json file] (default: {None})
         """
-        self.currentDict = currentDict
         col_ref = self.db.collection("images").stream()
-
+        self.processList = []
         event_loop = asyncio.get_event_loop()
         if event_loop.is_closed():
             asyncio.set_event_loop(asyncio.new_event_loop())
@@ -49,17 +47,17 @@ class FirestoreUtils:
                 doc = uid.get()  # 0.2, 0.002, 0.2
 
                 # check to see if the uid has unprocessed data
-                if doc.to_dict()["hasUnprocessedFlag"]:
-                    self.processList = []
+                if doc.to_dict()["hasUnprocessedFlag"]:  #! change to isProcessed
+                    # self.processList = []
                     event_loop.run_until_complete(self.main(uid))
         finally:
             event_loop.close()
 
-        if not returnDict:
+        if not returnList:
             with open(outputFileName if outputFileName else "test.json", "w") as f:
-                json.dump(self.processDict, f)
+                json.dump(self.processList, f)
         else:
-            return self.processDict
+            return self.processList
 
     async def main(self, uid):
         """[summary]
@@ -71,15 +69,12 @@ class FirestoreUtils:
         processes = uid.collection("process").stream()
         loop = asyncio.get_event_loop()
         res = [
-            loop.run_in_executor(self.executor, self.getProcessList, [uid, process])
+            loop.run_in_executor(self.executor, self.getData, [uid, process])
             for process in processes
         ]
         completed, pending = await asyncio.wait(res)
-        # if self.currentDict:
 
-        self.processDict.update({uid.id: self.processList})
-
-    def getProcessList(self, uid_process: list):
+    def getData(self, uid_process: list):
         """[summary]
         builds a list of processes for each uid
         
@@ -91,14 +86,27 @@ class FirestoreUtils:
         process = uid_process[1]
         processDoc = uid.collection("process").document(process.id).get().to_dict()
         # if processDoc["unprocessedFlag"] and processDoc["runOnUpload"]:
-        if processDoc["runOnUpload"]:
+        if processDoc["runOnUpload"]:  #! add isProcessed
             processDoc["uploadDate"] = processDoc["uploadDate"].isoformat()
-            self.processList.append(OrderedDict(processDoc))
+            self.processList.append(processDoc)
 
-    def updateField(self, uid: str, processName: str):
+    def updateFields(self, uid: str, processName: str):
+        outputPath = os.listdir(
+            f"/home/a/Desktop/downloaded/images/{uid}/{processName}/output"
+        )
+        lenOutput = len(outputPath)
+        outputDict = {}
+        for i, output in enumerate(outputPath):
+            # print(output)
+            outputDict.update(
+                {f"locOutput_{i+1}": f"images/{uid}/{processName}/{output}"}
+            )
+        # print(outputDict)
         self.db.collection("images").document(uid).collection("process").document(
             processName
-        ).update({"unprocessedFlag": False})
+        ).update(
+            {"unprocessedFlag": True, "locOutputs": outputDict}
+        )  #! change to isProcessed
 
 
 # counter = 0
@@ -122,7 +130,7 @@ if __name__ == "__main__":
     outputFile = "processDict.json"
 
     start = np.array([perf_counter(), time(), process_time()])
-    firestore.getProcessDict(returnDict=False)
+    firestore.getProcessList(returnList=False)
     end = np.array([perf_counter(), time(), process_time()])
     diff_time = end - start
 

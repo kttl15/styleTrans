@@ -3,6 +3,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import numpy as np
 import json
 import pathlib
+import os
 from firebase_admin import credentials
 
 
@@ -26,21 +27,37 @@ class FirebaseStorageUtils:
         client = storage.Client(credentials=credentials, project=storage_bucket)
         self.bucket = client.get_bucket(storage_bucket)
 
-    def downloadFile(self, storageFilename: list):
+    def downloadFiles(self, storageFilename: list, override: bool = False):
         for s in storageFilename:
-            downloadPathName = f"downloaded/{s}"
-            if not pathlib.Path(downloadPathName).is_dir():
-                filepath = "/".join(downloadPathName.split("/")[:-1])
-            filepath = pathlib.Path(filepath)
-            if not filepath.exists():
-                filepath.mkdir(parents=True, exist_ok=True)
+            self.downloadPathName = f"/home/a/Desktop/downloaded/{s}"
+            if override:
+                self._downloadFile(s)
+            elif not pathlib.Path(self.downloadPathName).exists():
+                self._downloadFile(s)
 
-            blob = self.bucket.get_blob(s)
-            blob.download_to_filename(downloadPathName)
+    def _downloadFile(self, s: str):
+        if not pathlib.Path(self.downloadPathName).is_dir():
+            filepath = "/".join(self.downloadPathName.split("/")[:-1])
+        filepath = pathlib.Path(filepath)
+        if not filepath.exists():
+            filepath.mkdir(parents=True, exist_ok=True)
+        blob = self.bucket.get_blob(s)
+        blob.download_to_filename(self.downloadPathName)
 
-    def uploadFile(self, storageFileName: str, uploadPathName: str):
-        blob = self.bucket.blob(storageFileName)
-        blob.upload_from_filename(uploadPathName)
+    def uploadFolder(self, uid: str, processName: str):
+        outputPath = os.listdir(
+            f"/home/a/Desktop/downloaded/images/{uid}/{processName}/output"
+        )
+        lenOutput = len(outputPath)
+        for output in outputPath:
+            print(
+                f"images/{uid}/{processName}/{output}",
+                f"/home/a/Desktop/downloaded/images/{uid}/{processName}/output/{output}",
+            )
+            blob = self.bucket.blob(f"images/{uid}/{processName}/{output}")
+            blob.upload_from_filename(
+                f"/home/a/Desktop/downloaded/images/{uid}/{processName}/output/{output}"
+            )
 
     def deleteFile(self, storageFileName: str):
         self.bucket.delete_blob(storageFileName)
@@ -53,7 +70,7 @@ if __name__ == "__main__":
     }
 
     firebase = FirebaseStorageUtils(config)
-    firebase.downloadFile(
+    firebase.downloadFiles(
         storageFilename=[
             "images/UPjcLOcMuKfLHeeEeJhF5IVHvCP2/cjcjc/content.jpg",
             "images/UPjcLOcMuKfLHeeEeJhF5IVHvCP2/cjcjc/style.jpg",

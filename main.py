@@ -13,8 +13,8 @@ from firestoreUtils import FirestoreUtils
 import asyncio
 
 
-# gpus = tf.config.experimental.list_physical_devices("GPU")
-# tf.config.experimental.set_memory_growth(gpus[0], True)
+gpus = tf.config.experimental.list_physical_devices("GPU")
+tf.config.experimental.set_memory_growth(gpus[0], True)
 
 
 class Extractor(tf.keras.models.Model):
@@ -155,50 +155,60 @@ class StyleTransfer:
         # pbar.update(1)
 
     def run(self, process: dict):
+        print(f"Running {process['processName']}")
         # get details from json object
-        locContent = f"/home/a/Desktop/downloaded/{process['locContent']}"
-        locStyle = f"/home/a/Desktop/downloaded/{process['locStyle']}"
-        content_img = self.load_img(locContent)
-        style_img = self.load_img(locStyle)
-        epochs = int(process["epoch"])
-        numberOfImageToSave = min(epochs, 4)
-        self.contentWeight = int(process["contentWeight"])
-        self.contentWeight = 1e3 * self.contentWeight ** 2 * 0.5
-        self.styleWeight = int(process["styleWeight"])
-        self.styleWeight = -1.1e-3 * self.styleWeight + 0.0111
-        lr = 1e-2
-        b1 = 0.99
-        ep = 1e-2
-        decay = 1e-8
+        try:
+            locContent = f"/home/a/Desktop/downloaded/{process['locContent']}"
+            locStyle = f"/home/a/Desktop/downloaded/{process['locStyle']}"
+            content_img = self.load_img(locContent)
+            style_img = self.load_img(locStyle)
+            epochs = 2
+            # epochs = int(process["epoch"])
+            numberOfImageToSave = min(epochs, 4)
+            self.contentWeight = int(process["contentWeight"])
+            self.contentWeight = 1e3 * self.contentWeight ** 2 * 0.5
+            self.styleWeight = int(process["styleWeight"])
+            self.styleWeight = -1.1e-3 * self.styleWeight + 0.0111
+            lr = 1e-2
+            b1 = 0.99
+            ep = 1e-2
+            decay = 1e-8
 
-        self.opt = tf.optimizers.Nadam(
-            learning_rate=lr, beta_1=b1, epsilon=ep, decay=decay,
-        )
-        self.extractor = Extractor(self.style_layers, self.content_layers)
-        self.style_targets = self.extractor(style_img)["style"]
-        self.content_targets = self.extractor(content_img)["content"]
-        total_variation_weight = 1000
-        steps_per_epoch = 100
-        epochsToSave = np.linspace(1, epochs, numberOfImageToSave).round().astype(int)
+            self.opt = tf.optimizers.Nadam(
+                learning_rate=lr, beta_1=b1, epsilon=ep, decay=decay,
+            )
+            self.extractor = Extractor(self.style_layers, self.content_layers)
+            self.style_targets = self.extractor(style_img)["style"]
+            self.content_targets = self.extractor(content_img)["content"]
+            total_variation_weight = 1000
+            steps_per_epoch = 100
+            epochsToSave = (
+                np.linspace(1, epochs, numberOfImageToSave).round().astype(int)
+            )
+            savePath = "/".join(locContent.split("/")[:-1]) + "/output"
 
-        img = tf.Variable(content_img)
-        train_step = self.new_train_step()
-        for epoch in tqdm(range(epochs)):
-            for m in range(steps_per_epoch):
-                train_step(
-                    img,
-                    total_variation_weight,
-                    self.styleWeight,
-                    self.contentWeight,
-                    self.extractor,
-                    self.opt,
-                )
-            if epoch + 1 in epochsToSave:
-                self.tensor_to_image(img).save(
-                    os.path.join(
-                        "/".join(locContent.split("/")[:-1]), f"output-{epoch+1}.jpg",
+            img = tf.Variable(content_img)
+            train_step = self.new_train_step()
+            for epoch in tqdm(range(epochs)):
+                for m in range(steps_per_epoch):
+                    train_step(
+                        img,
+                        total_variation_weight,
+                        self.styleWeight,
+                        self.contentWeight,
+                        self.extractor,
+                        self.opt,
                     )
-                )
+                if epoch + 1 in epochsToSave:
+                    if not pathlib.Path(savePath).exists():
+                        pathlib.Path(savePath).mkdir(parents=True, exist_ok=True)
+                    self.tensor_to_image(img).save(
+                        os.path.join(savePath, f"output-{epoch+1}.jpg",)
+                    )
+            return True
+        except Exception as e:
+            print(e)
+            return False
 
     def clip_0_1(self, img):
         """[summary]
@@ -315,54 +325,62 @@ class StyleTransfer:
         return train_step
 
 
-def getMoreData():
-    firestore.getProcessDict(returnDict=True)
+def extractFileNames():
+    fileList = []
+    for p in processList:
+        fileList.append(p["locContent"])
+        fileList.append(p["locStyle"])
+    return fileList
 
 
 if __name__ == "__main__":
     config = {"serviceAccount": "/home/a/Desktop/gan/serviceAccount.json"}
-    firebaseStorage = FirebaseStorageUtils(config)
+    firebase = FirebaseStorageUtils(config)
     firestore = FirestoreUtils(config)
-    processDict = firestore.getProcessDict(returnDict=True)
+    processList = firestore.getProcessList(returnList=True)
+    firebase.downloadFiles(extractFileNames())
     minTimeBetweenRequests = 300
     style = StyleTransfer()
+    run = True
 
-    while True:
-        processDictLen = 0
+    with open("test.json", "r") as f:
+        processList = json.load(f)
+
+    processList = processList[0:2]
+
+    while run:
         restart = False
         lastRequest = time.time()
+        processListLen = len(processList)
 
-        for uid in processDict.keys():
-            processDictLen += len(processDict[uid])
+        for i, process in enumerate(processList):
+            # print(process)
+            successful = style.run(process=process)
+            if successful:
+                firestore.updateFields(process["uid"], process["processName"])
+                firebase.uploadFolder(process["uid"], process["processName"])
+                processListLen -= 1
+            else:
+                processList.pop(i)
+            if processListLen <= 5:
+                if time.time() - lastRequest >= minTimeBetweenRequests:
+                    print("Getting More Data.")
+                    processList = firestore.getProcessList(returnList=True)
+                    print("Restarting.")
+                    restart = True
+                elif processListLen <= 0:
+                    timeToSleep = lastRequest + minTimeBetweenRequests - time.time()
+                    print(
+                        f"Last Request Within 5 Minutes. Sleeping for approx {np.round(timeToSleep, 0)}s"
+                    )
+                    time.sleep(timeToSleep)
+                    print("Getting More Data.")
+                    processList = firestore.getProcessList(returnList=True)
+                    print("Restarting.")
+                    restart = True
+                # else:
+                #     print("Handle.")
 
-        print(f"data len: {processDictLen}")
-        if processDictLen <= 1:
-            if len(processDict[list(processDict.keys())[0]]) == 0:
-                print("No More Data. Breaking.")
-                break
-
-        for uid in processDict.keys():
-            for process in processDict[uid]:
-                # style.run(process=process)
-                time.sleep(1)
-                # firestore.updateField(uid, process["processName"])
-                processDictLen -= 1
-                if processDictLen <= 5:
-                    if time.time() - lastRequest >= minTimeBetweenRequests:
-                        print("Getting More Data.")
-                        processDict = firestore.getProcessDict(returnDict=True)
-                        print("Restarting.")
-                        restart = True
-                    elif processDictLen <= 0:
-                        print(
-                            f"Last Request Within 5 Minutes. Sleeping for approx {lastRequest + minTimeBetweenRequests - time.time()}s"
-                        )
-                        time.sleep(1)
-                    else:
-                        print("Continue")
-
-                if restart:
-                    break
             if restart:
                 break
 
