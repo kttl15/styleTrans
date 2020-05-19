@@ -21,8 +21,12 @@ class FirestoreUtils:
         self.processDict = {}
         self.executor = ThreadPoolExecutor()
 
-    def getProcessDict(self, outputFile: str = None):
+    def getProcessDict(
+        self, returnDict: bool, currentDict: str = None, outputFileName: str = None
+    ):
         """[summary]
+        db stucture: collection(images) -> document(uid) -> collection(process) -> document(processName)
+        
         main method that builds the output dict and saved as a json object
         
         checks to see if uid has any unprocessed data before retriving records to save
@@ -31,11 +35,13 @@ class FirestoreUtils:
         Keyword Arguments:
             outputFile {str} -- [name of json file] (default: {None})
         """
-        # db stucture: collection(images) -> document(uid) -> collection(process) -> document(processName)
-
+        self.currentDict = currentDict
         col_ref = self.db.collection("images").stream()
 
         event_loop = asyncio.get_event_loop()
+        if event_loop.is_closed():
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            event_loop = asyncio.get_event_loop()
         try:
             # get uids
             for d in col_ref:
@@ -49,8 +55,11 @@ class FirestoreUtils:
         finally:
             event_loop.close()
 
-        with open(outputFile if outputFile else "test.json", "w") as f:
-            json.dump(self.processDict, f)
+        if not returnDict:
+            with open(outputFileName if outputFileName else "test.json", "w") as f:
+                json.dump(self.processDict, f)
+        else:
+            return self.processDict
 
     async def main(self, uid):
         """[summary]
@@ -66,6 +75,8 @@ class FirestoreUtils:
             for process in processes
         ]
         completed, pending = await asyncio.wait(res)
+        # if self.currentDict:
+
         self.processDict.update({uid.id: self.processList})
 
     def getProcessList(self, uid_process: list):
@@ -79,10 +90,15 @@ class FirestoreUtils:
         uid = uid_process[0]
         process = uid_process[1]
         processDoc = uid.collection("process").document(process.id).get().to_dict()
-        #! add runOnUpload flag
-        if processDoc["unprocessedFlag"]:
+        # if processDoc["unprocessedFlag"] and processDoc["runOnUpload"]:
+        if processDoc["runOnUpload"]:
             processDoc["uploadDate"] = processDoc["uploadDate"].isoformat()
             self.processList.append(OrderedDict(processDoc))
+
+    def updateField(self, uid: str, processName: str):
+        self.db.collection("images").document(uid).collection("process").document(
+            processName
+        ).update({"unprocessedFlag": False})
 
 
 # counter = 0
@@ -106,7 +122,7 @@ if __name__ == "__main__":
     outputFile = "processDict.json"
 
     start = np.array([perf_counter(), time(), process_time()])
-    firestore.getProcessDict(outputFile=outputFile)
+    firestore.getProcessDict(returnDict=False)
     end = np.array([perf_counter(), time(), process_time()])
     diff_time = end - start
 

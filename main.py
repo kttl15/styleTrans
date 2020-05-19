@@ -9,10 +9,12 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import time
 from firebaseUtils import FirebaseStorageUtils
+from firestoreUtils import FirestoreUtils
+import asyncio
 
 
-gpus = tf.config.experimental.list_physical_devices("GPU")
-tf.config.experimental.set_memory_growth(gpus[0], True)
+# gpus = tf.config.experimental.list_physical_devices("GPU")
+# tf.config.experimental.set_memory_growth(gpus[0], True)
 
 
 class Extractor(tf.keras.models.Model):
@@ -102,14 +104,15 @@ class Extractor(tf.keras.models.Model):
 
 
 class StyleTransfer:
-    def __init__(self, processDict: dict):
+    def __init__(self):
         # with open(processDict, "r") as f:
         #     processDict = json.load(f)
 
         # get the number of processes
+        # self.processDict = processDict
         # processDictLen = 0
-        # for uid in processDict.keys():
-        #     processDictLen += len(processDict[uid])
+        # for uid in self.processDict.keys():
+        #     processDictLen += len(self.processDict[uid])
 
         self.content_layers = [
             "block5_conv1",
@@ -131,13 +134,27 @@ class StyleTransfer:
             # 'block4_conv4',
         ]
 
-        # with tqdm(total=processDictLen) as pbar:
-        for uid in processDict.keys():
-            for process in processDict[uid]:
-                self.run(process)
-                # pbar.update(1)
+        # getMoreData = False
+        # isDoneGettingProcessDict = False
+        # isGettingProcessDict = False
 
-    def run(self, process):
+        # with tqdm(total=processDictLen) as pbar:
+        # for uid in self.processDict.keys():
+        #     for process in self.processDict[uid]:
+        #         # self.run(process)
+        #         time.sleep(1)
+        #         processDictLen -= 1
+        #         if processDictLen <= 5 and getMoreData:
+        #             self.processDict = firestore.getProcessDict(returnDict=True)
+
+        # get more processes
+
+        # firestore.getProcessDict()
+
+        # firestore.updateField(uid, process)
+        # pbar.update(1)
+
+    def run(self, process: dict):
         # get details from json object
         locContent = f"/home/a/Desktop/downloaded/{process['locContent']}"
         locStyle = f"/home/a/Desktop/downloaded/{process['locStyle']}"
@@ -298,14 +315,56 @@ class StyleTransfer:
         return train_step
 
 
+def getMoreData():
+    firestore.getProcessDict(returnDict=True)
+
+
 if __name__ == "__main__":
     config = {"serviceAccount": "/home/a/Desktop/gan/serviceAccount.json"}
     firebaseStorage = FirebaseStorageUtils(config)
+    firestore = FirestoreUtils(config)
+    processDict = firestore.getProcessDict(returnDict=True)
+    minTimeBetweenRequests = 300
+    style = StyleTransfer()
 
-    with open("processDict.json", "r") as f:
-        processDict = json.load(f)
+    while True:
+        processDictLen = 0
+        restart = False
+        lastRequest = time.time()
 
-    style = StyleTransfer(processDict)
+        for uid in processDict.keys():
+            processDictLen += len(processDict[uid])
+
+        print(f"data len: {processDictLen}")
+        if processDictLen <= 1:
+            if len(processDict[list(processDict.keys())[0]]) == 0:
+                print("No More Data. Breaking.")
+                break
+
+        for uid in processDict.keys():
+            for process in processDict[uid]:
+                # style.run(process=process)
+                time.sleep(1)
+                # firestore.updateField(uid, process["processName"])
+                processDictLen -= 1
+                if processDictLen <= 5:
+                    if time.time() - lastRequest >= minTimeBetweenRequests:
+                        print("Getting More Data.")
+                        processDict = firestore.getProcessDict(returnDict=True)
+                        print("Restarting.")
+                        restart = True
+                    elif processDictLen <= 0:
+                        print(
+                            f"Last Request Within 5 Minutes. Sleeping for approx {lastRequest + minTimeBetweenRequests - time.time()}s"
+                        )
+                        time.sleep(1)
+                    else:
+                        print("Continue")
+
+                if restart:
+                    break
+            if restart:
+                break
 
 
 # TODO: find a way to control how much colour is used
