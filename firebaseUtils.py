@@ -52,10 +52,6 @@ class FirebaseStorageUtils:
         )
         lenOutput = len(outputPath)
         for output in outputPath:
-            print(
-                f"images/{uid}/{processName}/{output}",
-                f"/home/a/Desktop/downloaded/images/{uid}/{processName}/output/{output}",
-            )
             blob = self.bucket.blob(f"images/{uid}/{processName}/{output}")
             blob.upload_from_filename(
                 f"/home/a/Desktop/downloaded/images/{uid}/{processName}/output/{output}"

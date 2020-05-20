@@ -133,17 +133,18 @@ class StyleTransfer:
             locStyle = f"/home/a/Desktop/downloaded/{process['locStyle']}"
             content_img = self.load_img(locContent)
             style_img = self.load_img(locStyle)
-            epochs = 2
-            # epochs = int(process["epoch"])
+            epochs = int(process["epoch"])
             numberOfImageToSave = min(epochs, 4)
             self.contentWeight = int(process["contentWeight"])
             self.contentWeight = 1e3 * self.contentWeight ** 2 * 0.5
             self.styleWeight = int(process["styleWeight"])
             self.styleWeight = -1.1e-3 * self.styleWeight + 0.0111
+            print(f"cw: {self.contentWeight}, sw: {self.styleWeight}")
             lr = 1e-2
             b1 = 0.99
             ep = 1e-2
             decay = 1e-8
+            counter = 1
 
             self.opt = tf.optimizers.Nadam(
                 learning_rate=lr, beta_1=b1, epsilon=ep, decay=decay,
@@ -174,8 +175,9 @@ class StyleTransfer:
                     if not pathlib.Path(savePath).exists():
                         pathlib.Path(savePath).mkdir(parents=True, exist_ok=True)
                     self.tensor_to_image(img).save(
-                        os.path.join(savePath, f"output-{epoch+1}.jpg",)
+                        os.path.join(savePath, f"output-{counter}.jpg",)
                     )
+                    counter += 1
             return True
         except Exception as e:
             print(e)
