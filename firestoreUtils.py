@@ -47,8 +47,7 @@ class FirestoreUtils:
                 doc = uid.get()  # 0.2, 0.002, 0.2
 
                 # check to see if the uid has unprocessed data
-                if doc.to_dict()["hasUnprocessedFlag"]:  #! change to isProcessed
-                    # self.processList = []
+                if doc.to_dict()["hasUnprocessedFlag"]:
                     event_loop.run_until_complete(self.main(uid))
         finally:
             event_loop.close()
@@ -85,45 +84,26 @@ class FirestoreUtils:
         uid = uid_process[0]
         process = uid_process[1]
         processDoc = uid.collection("process").document(process.id).get().to_dict()
-        # if processDoc["unprocessedFlag"] and processDoc["runOnUpload"]:
-        if processDoc["runOnUpload"]:  #! add isProcessed
+        if processDoc["runOnUpload"] and not processDoc["isProcessed"]:
             processDoc["uploadDate"] = processDoc["uploadDate"].isoformat()
             self.processList.append(processDoc)
 
     def updateFields(self, uid: str, processName: str):
+        print("Updating Fields")
         outputPath = os.listdir(
             f"/home/a/Desktop/downloaded/images/{uid}/{processName}/output"
         )
         lenOutput = len(outputPath)
         outputDict = {}
         for i, output in enumerate(outputPath):
-            # print(output)
             outputDict.update(
                 {f"locOutput_{i+1}": f"images/{uid}/{processName}/{output}"}
             )
-        # print(outputDict)
         self.db.collection("images").document(uid).collection("process").document(
             processName
-        ).update(
-            {"unprocessedFlag": True, "locOutputs": outputDict}
-        )  #! change to isProcessed
+        ).update({"isProcessed": True, "locOutputs": outputDict})
 
 
-# counter = 0
-# while True:
-#     time_start = time()
-#     print(counter)
-#     while True:
-#         if time() - time_start >= 5:  # every 5 seconds
-#             # do something like retrive data
-#             print('break')
-#             break
-#         else:
-#             # do something
-#             pass
-#     counter += 1
-#     if counter >= 3:  # limit to 3 loops
-#         break
 if __name__ == "__main__":
     config = {"serviceAccount": "/home/a/Desktop/gan/serviceAccount.json"}
     firestore = FirestoreUtils(config)

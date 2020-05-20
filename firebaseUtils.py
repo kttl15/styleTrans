@@ -28,6 +28,7 @@ class FirebaseStorageUtils:
         self.bucket = client.get_bucket(storage_bucket)
 
     def downloadFiles(self, storageFilename: list, override: bool = False):
+        print("Downloading Files")
         for s in storageFilename:
             self.downloadPathName = f"/home/a/Desktop/downloaded/{s}"
             if override:
@@ -45,6 +46,7 @@ class FirebaseStorageUtils:
         blob.download_to_filename(self.downloadPathName)
 
     def uploadFolder(self, uid: str, processName: str):
+        print("Uploading Files")
         outputPath = os.listdir(
             f"/home/a/Desktop/downloaded/images/{uid}/{processName}/output"
         )

@@ -105,15 +105,6 @@ class Extractor(tf.keras.models.Model):
 
 class StyleTransfer:
     def __init__(self):
-        # with open(processDict, "r") as f:
-        #     processDict = json.load(f)
-
-        # get the number of processes
-        # self.processDict = processDict
-        # processDictLen = 0
-        # for uid in self.processDict.keys():
-        #     processDictLen += len(self.processDict[uid])
-
         self.content_layers = [
             "block5_conv1",
             "block5_conv2",
@@ -133,26 +124,6 @@ class StyleTransfer:
             # 'block4_conv3',
             # 'block4_conv4',
         ]
-
-        # getMoreData = False
-        # isDoneGettingProcessDict = False
-        # isGettingProcessDict = False
-
-        # with tqdm(total=processDictLen) as pbar:
-        # for uid in self.processDict.keys():
-        #     for process in self.processDict[uid]:
-        #         # self.run(process)
-        #         time.sleep(1)
-        #         processDictLen -= 1
-        #         if processDictLen <= 5 and getMoreData:
-        #             self.processDict = firestore.getProcessDict(returnDict=True)
-
-        # get more processes
-
-        # firestore.getProcessDict()
-
-        # firestore.updateField(uid, process)
-        # pbar.update(1)
 
     def run(self, process: dict):
         print(f"Running {process['processName']}")
@@ -339,14 +310,9 @@ if __name__ == "__main__":
     firestore = FirestoreUtils(config)
     processList = firestore.getProcessList(returnList=True)
     firebase.downloadFiles(extractFileNames())
-    minTimeBetweenRequests = 300
+    minTimeBetweenRequests = 180
     style = StyleTransfer()
     run = True
-
-    with open("test.json", "r") as f:
-        processList = json.load(f)
-
-    processList = processList[0:2]
 
     while run:
         restart = False
@@ -378,8 +344,6 @@ if __name__ == "__main__":
                     processList = firestore.getProcessList(returnList=True)
                     print("Restarting.")
                     restart = True
-                # else:
-                #     print("Handle.")
 
             if restart:
                 break
