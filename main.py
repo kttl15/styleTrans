@@ -1,11 +1,12 @@
+import os
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import tensorflow as tf
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
-import os
 import json
 import pathlib
-import matplotlib.pyplot as plt
 from datetime import datetime
 import time
 from firebaseUtils import FirebaseStorageUtils
@@ -15,6 +16,7 @@ import asyncio
 
 gpus = tf.config.experimental.list_physical_devices("GPU")
 tf.config.experimental.set_memory_growth(gpus[0], True)
+print("Starting")
 
 
 class Extractor(tf.keras.models.Model):
@@ -126,7 +128,8 @@ class StyleTransfer:
         ]
 
     def run(self, process: dict):
-        print(f"Running {process['processName']}")
+        assert isinstance(process, dict)
+        print(f"Running {process['uid']}_{process['processName']}")
         # get details from json object
         try:
             locContent = f"/home/a/Desktop/downloaded/{process['locContent']}"
@@ -134,7 +137,7 @@ class StyleTransfer:
             content_img = self.load_img(locContent)
             style_img = self.load_img(locStyle)
             epochs = int(process["epoch"])
-            numberOfImageToSave = min(epochs, 4)
+            numberOfImageToSave = epochs
             self.contentWeight = int(process["contentWeight"])
             self.contentWeight = 1e3 * self.contentWeight ** 2 * 0.5
             self.styleWeight = int(process["styleWeight"])
@@ -175,7 +178,7 @@ class StyleTransfer:
                     if not pathlib.Path(savePath).exists():
                         pathlib.Path(savePath).mkdir(parents=True, exist_ok=True)
                     self.tensor_to_image(img).save(
-                        os.path.join(savePath, f"output-{counter}.jpg",)
+                        os.path.join(savePath, f"output-{counter:02}.jpg",)
                     )
                     counter += 1
             return True
@@ -298,57 +301,92 @@ class StyleTransfer:
         return train_step
 
 
-def extractFileNames():
+def extractFileNames(processList):
+    """[summary]
+    transforms a list of dict to a list containing only the files to be downloaded
+
+    Arguments:
+        processList {list{dict}} -- [list of dict of processes]
+
+    Returns:
+        [list] -- [list of files to be downloaded]
+    """
     fileList = []
-    for p in processList:
-        fileList.append(p["locContent"])
-        fileList.append(p["locStyle"])
+    for i, p in enumerate(processList):
+        tempList = [p["locContent"], p["locStyle"]]
+        if firebase.checkFileExist(tempList):
+            fileList.append(p["locContent"])
+            fileList.append(p["locStyle"])
+
+        else:
+            processList.pop(i)
     return fileList
+
+
+def getMoreData():
+    """[summary]
+    creates a list of dict of processes and downloads the necessary files
+
+    Returns:
+        [list{dict}] -- [a list of dict of processes]
+    """
+    print("Getting More Data.")
+    processList = firestore.getProcessList(returnList=True)
+    firebase.downloadFiles(extractFileNames(processList), override=True)
+    return processList
 
 
 if __name__ == "__main__":
     config = {"serviceAccount": "/home/a/Desktop/gan/serviceAccount.json"}
     firebase = FirebaseStorageUtils(config)
     firestore = FirestoreUtils(config)
-    processList = firestore.getProcessList(returnList=True)
-    firebase.downloadFiles(extractFileNames())
-    minTimeBetweenRequests = 180
+    processList = getMoreData()
+    minTimeBetweenRequests = 60
     style = StyleTransfer()
     run = True
+    # startTime = time.time()
+    # processList = []
 
     while run:
         restart = False
         lastRequest = time.time()
         processListLen = len(processList)
+        if processListLen <= 0:
+            if time.time() - lastRequest <= minTimeBetweenRequests:
+                timeToSleep = lastRequest + minTimeBetweenRequests - time.time()
+                print(
+                    f"Last Request Within {minTimeBetweenRequests}s. Sleeping for approx {np.round(timeToSleep, 0)}s"
+                )
+                time.sleep(timeToSleep)
+            processList = getMoreData()
 
-        for i, process in enumerate(processList):
-            # print(process)
-            successful = style.run(process=process)
-            if successful:
-                firestore.updateFields(process["uid"], process["processName"])
-                firebase.uploadFolder(process["uid"], process["processName"])
-                processListLen -= 1
-            else:
-                processList.pop(i)
-            if processListLen <= 5:
-                if time.time() - lastRequest >= minTimeBetweenRequests:
-                    print("Getting More Data.")
-                    processList = firestore.getProcessList(returnList=True)
-                    print("Restarting.")
-                    restart = True
-                elif processListLen <= 0:
-                    timeToSleep = lastRequest + minTimeBetweenRequests - time.time()
-                    print(
-                        f"Last Request Within 5 Minutes. Sleeping for approx {np.round(timeToSleep, 0)}s"
-                    )
-                    time.sleep(timeToSleep)
-                    print("Getting More Data.")
-                    processList = firestore.getProcessList(returnList=True)
-                    print("Restarting.")
-                    restart = True
+        else:
+            for i, process in enumerate(processList):
+                print(f"Number of Processes: {processListLen}")
+                successful = style.run(process=process)
+                if successful:
+                    firebase.uploadFolder(process["uid"], process["processName"])
+                    firestore.updateFields(process["uid"], process["processName"])
+                    processListLen -= 1
+                else:
+                    processList.pop(i)
+                if processListLen <= 0:
+                    if time.time() - lastRequest >= minTimeBetweenRequests:
+                        processList = getMoreData()
+                        print("Restarting.")
+                        restart = True
+                    elif processListLen <= 0:
+                        timeToSleep = lastRequest + minTimeBetweenRequests - time.time()
+                        print(
+                            f"Last Request Within {minTimeBetweenRequests}s. Sleeping for approx {np.round(timeToSleep, 0)}s"
+                        )
+                        time.sleep(timeToSleep)
+                        processList = getMoreData()
+                        print("Restarting.")
+                        restart = True
 
-            if restart:
-                break
+                if restart:
+                    break
 
 
 # TODO: find a way to control how much colour is used
