@@ -27,25 +27,67 @@ class FirebaseStorageUtils:
         client = storage.Client(credentials=credentials, project=storage_bucket)
         self.bucket = client.get_bucket(storage_bucket)
 
-    def downloadFiles(self, storageFilename: list, override: bool = False):
-        print("Downloading Files")
-        for s in storageFilename:
-            self.downloadPathName = f"/home/a/Desktop/downloaded/{s}"
-            if override:
-                self._downloadFile(s)
-            elif not pathlib.Path(self.downloadPathName).exists():
-                self._downloadFile(s)
+    def downloadFiles(self, fileList: list, override: bool = False):
+        """[summary]
+        main method that iterates through a list of files to download
 
-    def _downloadFile(self, s: str):
+        Arguments:
+            fileList {list} -- [List of files to download from firebase storage]
+
+        Keyword Arguments:
+            override {bool} -- [Whether or not to override existing files] (default: {False})
+        """
+        if len(fileList) > 0:
+            print(f"Downloading {len(fileList)} Files")
+            for file in fileList:
+                self.downloadPathName = f"/home/a/Desktop/downloaded/{file}"
+                if override:
+                    self._downloadFile(file)
+                elif not pathlib.Path(self.downloadPathName).exists():
+                    # checks to see if the file exists
+                    # if not then download
+                    self._downloadFile(file)
+        else:
+            print("No Files")
+
+    def _downloadFile(self, f: str):
+        """[summary]
+            internal method to download a file from firebase storage
+
+            Arguments:
+                f {str} -- [file dir]
+            """
         if not pathlib.Path(self.downloadPathName).is_dir():
             filepath = "/".join(self.downloadPathName.split("/")[:-1])
         filepath = pathlib.Path(filepath)
         if not filepath.exists():
             filepath.mkdir(parents=True, exist_ok=True)
-        blob = self.bucket.get_blob(s)
+        blob = self.bucket.get_blob(f)
         blob.download_to_filename(self.downloadPathName)
 
+    def checkFileExist(self, fileList: list) -> bool:
+        """[summary]
+        checks to see if content/style pair exists
+
+        Arguments:
+            fileList {list} -- [List of content/style dir]
+
+        Returns:
+            bool
+        """
+        for f in fileList:
+            if not self.bucket.get_blob(f):
+                return False
+        return True
+
     def uploadFolder(self, uid: str, processName: str):
+        """[summary]
+        upload output files to firebase storage
+
+        Arguments:
+            uid {str} -- [uid of current process]
+            processName {str} -- [name of process]
+        """
         print("Uploading Files")
         outputPath = os.listdir(
             f"/home/a/Desktop/downloaded/images/{uid}/{processName}/output"
